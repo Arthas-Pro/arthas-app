@@ -1,0 +1,71 @@
+name: Publicar site e servidor (Hostinger)
+
+# Executado manualmente: aba Actions → "Publicar site e servidor (Hostinger)" → Run workflow.
+# Requer o segredo HOSTINGER_SSH_PASSWORD (Settings → Secrets and variables → Actions).
+on:
+  workflow_dispatch:
+
+env:
+  SSH_HOST: 147.79.84.69
+  SSH_PORT: 65002
+  SSH_USER: u179324405
+  WEB_DIR: domains/thebosspro.com/public_html
+  API_DIR: domains/api.thebosspro.com/nodejs
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Conferir segredo
+        env:
+          HAS_PASSWORD: ${{ secrets.HOSTINGER_SSH_PASSWORD != '' }}
+        run: |
+          if [ "$HAS_PASSWORD" != "true" ]; then
+            echo "::error::Cadastre o segredo HOSTINGER_SSH_PASSWORD em Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      # O servidor vai primeiro: o site novo depende do login com token.
+      # Só os arquivos de código são enviados; .env, storage/ e data/ no servidor não são tocados.
+      - name: Enviar servidor (API)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.SSH_HOST }}
+          port: ${{ env.SSH_PORT }}
+          username: ${{ env.SSH_USER }}
+          password: ${{ secrets.HOSTINGER_SSH_PASSWORD }}
+          source: server/app.js,server/index.js,server/package.json
+          target: ${{ env.API_DIR }}
+          strip_components: 1
+
+      - name: Reiniciar servidor
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.SSH_HOST }}
+          port: ${{ env.SSH_PORT }}
+          username: ${{ env.SSH_USER }}
+          password: ${{ secrets.HOSTINGER_SSH_PASSWORD }}
+          script: |
+            mkdir -p ${{ env.API_DIR }}/tmp
+            touch ${{ env.API_DIR }}/tmp/restart.txt
+
+      - name: Enviar site
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.SSH_HOST }}
+          port: ${{ env.SSH_PORT }}
+          username: ${{ env.SSH_USER }}
+          password: ${{ secrets.HOSTINGER_SSH_PASSWORD }}
+          source: dist/*
+          target: ${{ env.WEB_DIR }}
+          strip_components: 1

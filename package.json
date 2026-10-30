@@ -1,7 +1,7 @@
 {
   "name": "the-boss-erp",
   "productName": "THE BOSS ERP",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "THE BOSS - ERP/CRM para produtoras audiovisuais",
   "author": "Arthas Produções",
   "private": true,
@@ -12,10 +12,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "build:desktop": "cross-env VITE_API_URL=https://api.thebosspro.com vite build",
-    "electron": "npm run build:desktop && electron .",
-    "dist:win": "npm run build:desktop && electron-builder --win",
-    "dist:mac": "npm run build:desktop && electron-builder --mac"
+    "electron": "electron .",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -55,7 +54,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "cross-env": "^10.1.0",
     "date-fns": "^4.1.0",
     "electron": "^45.1.0",
     "electron-builder": "^26.18.0",

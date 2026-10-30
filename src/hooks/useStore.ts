@@ -4,11 +4,11 @@ import type {
   Freelancer, Tarefa, Alerta, FiltroPeriodo 
 } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { authHeaders } from '@/lib/api';
 
-// VITE_API_URL é definido no build do app desktop (Electron), que roda em localhost
-const API_URL = import.meta.env.VITE_API_URL || (['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname) 
+const API_URL = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname) 
   ? 'http://localhost:3001' 
-  : 'https://api.thebosspro.com');
+  : 'https://api.thebosspro.com';
 
 // Helper hook to manage persistent state per user with cloud sync
 function usePersistentState<T>(key: string, getInitialValue: () => T) {
@@ -31,7 +31,9 @@ function usePersistentState<T>(key: string, getInitialValue: () => T) {
 
     const fetchFromServer = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/data/${user.id}/${key}`);
+        const response = await fetch(`${API_URL}/api/data/${user.id}/${key}`, {
+          headers: authHeaders(user.token)
+        });
         if (response.ok) {
           const serverData = await response.json();
           const hasServerData = Array.isArray(serverData) ? serverData.length > 0 : (serverData && Object.keys(serverData).length > 0);
@@ -66,7 +68,7 @@ function usePersistentState<T>(key: string, getInitialValue: () => T) {
       try {
         await fetch(`${API_URL}/api/data/${user.id}/${key}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders(user.token),
           body: JSON.stringify(state)
         });
       } catch (err) {

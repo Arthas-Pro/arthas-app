@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
+import { authHeaders } from '@/lib/api';
 
 export interface User {
   id: string;
@@ -12,6 +13,7 @@ export interface User {
   dataAssinatura?: string;
   validadeAssinatura?: string;
   secondaryPassword?: string;
+  token?: string;
 }
 
 interface AuthContextType {
@@ -28,10 +30,9 @@ interface AuthContextType {
 }
 
 // API Base URL - Update this for production
-// VITE_API_URL é definido no build do app desktop (Electron), que roda em localhost
-const API_URL = import.meta.env.VITE_API_URL || (['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname) 
+const API_URL = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname) 
   ? 'http://localhost:3001' 
-  : 'https://api.thebosspro.com');
+  : 'https://api.thebosspro.com';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -65,6 +66,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const savedUser = localStorage.getItem('erp-auth-user');
     if (savedUser) {
       const parsed = JSON.parse(savedUser);
+      // Sessões antigas (sem token) precisam fazer login de novo
+      if (!parsed.token) {
+        localStorage.removeItem('erp-auth-user');
+        return null;
+      }
       const secPass = localStorage.getItem(`erp-sec-pass-${parsed.email.toLowerCase()}`);
       if (secPass) {
         parsed.secondaryPassword = secPass;
@@ -93,8 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await fetchWithRetry(`${API_URL}/api/auth/logout`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: user.email, deviceId })
+          headers: authHeaders(user.token)
         });
       } catch (err) {
         console.error('Erro ao notificar logout ao servidor');
@@ -103,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUnlockedSections([]);
     setUser(null);
     localStorage.removeItem('erp-auth-user');
-  }, [user, deviceId]);
+  }, [user]);
 
   const login = async (email: string, pass: string): Promise<boolean> => {
     try {
@@ -153,12 +158,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await fetchWithRetry(`${API_URL}/api/auth/update-password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, newPassword: newPass })
+        headers: authHeaders(user.token),
+        body: JSON.stringify({ newPassword: newPass })
       });
 
       if (!response.ok) {
-        toast.error('Erro ao atualizar senha no servidor.');
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.error || 'Erro ao atualizar senha no servidor.');
         return false;
       }
       
@@ -204,7 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const randomPass = generateRandomPassword();
       const response = await fetchWithRetry(`${API_URL}/api/auth/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(user?.token),
         body: JSON.stringify({ name, email, password: randomPass, plan })
       });
 
@@ -267,8 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const response = await fetchWithRetry(`${API_URL}/api/auth/validate-session`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: user.email, deviceId })
+          headers: authHeaders(user.token)
         });
 
         if (response.status === 401) {
@@ -285,7 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const intervalId = setInterval(validateSession, 60000); // 1 minute
     return () => clearInterval(intervalId);
-  }, [user, deviceId, logout]);
+  }, [user, logout]);
 
   // Clean device on unload
   useEffect(() => {

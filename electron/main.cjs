@@ -1,61 +1,21 @@
-const { app, BrowserWindow, Menu, shell, dialog } = require('electron');
-const http = require('http');
-const fs = require('fs');
+const { app, BrowserWindow, Menu, shell } = require('electron');
 const path = require('path');
 
-// Porta fixa: mantém a mesma origem (http://localhost:47821) entre execuções,
-// para que o localStorage (sessão, tema, idioma, cache de dados) seja preservado
-// e para que a origem possa ser autorizada no Google Cloud (Google Agenda).
-const PORT = 47821;
-const ORIGIN = `http://localhost:${PORT}`;
-const DIST_DIR = path.join(__dirname, '..', 'dist');
-
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.ico': 'image/x-icon',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf',
-  '.map': 'application/json',
-};
+// O app abre o sistema oficial. Assim ele recebe as atualizações do site na hora,
+// sem precisar reinstalar, e o login do Google Agenda funciona na origem já autorizada.
+const SITE_URL = 'https://thebosspro.com/';
+const SITE_HOSTS = ['thebosspro.com', 'www.thebosspro.com'];
+const OFFLINE_PAGE = path.join(__dirname, 'offline.html');
 
 let mainWindow = null;
-let server = null;
-
-function startServer() {
-  return new Promise((resolve, reject) => {
-    server = http.createServer((req, res) => {
-      const urlPath = decodeURIComponent(new URL(req.url, ORIGIN).pathname);
-      let filePath = path.normalize(path.join(DIST_DIR, urlPath));
-      if (!filePath.startsWith(DIST_DIR)) {
-        res.writeHead(403);
-        return res.end();
-      }
-      // Fallback de SPA: qualquer rota desconhecida devolve o index.html
-      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-        filePath = path.join(DIST_DIR, 'index.html');
-      }
-      const type = MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
-      res.writeHead(200, { 'Content-Type': type });
-      fs.createReadStream(filePath).pipe(res);
-    });
-    server.once('error', reject);
-    server.listen(PORT, '127.0.0.1', resolve);
-  });
-}
 
 function isInternalUrl(url) {
-  return url.startsWith(ORIGIN);
+  try {
+    const { protocol, hostname } = new URL(url);
+    return protocol === 'https:' && SITE_HOSTS.includes(hostname);
+  } catch {
+    return false;
+  }
 }
 
 // Login do Google (Google Agenda) precisa abrir como popup dentro do app,
@@ -111,7 +71,7 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!isInternalUrl(url)) {
+    if (!isInternalUrl(url) && !url.startsWith('file:')) {
       event.preventDefault();
       shell.openExternal(url);
     }
@@ -121,7 +81,14 @@ function createWindow() {
     if (details.reason !== 'clean-exit') mainWindow.reload();
   });
 
-  mainWindow.loadURL(ORIGIN);
+  // Sem internet ou site fora do ar: mostra uma tela com botão "Tentar novamente"
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, _desc, url, isMainFrame) => {
+    if (isMainFrame && errorCode !== -3 && isInternalUrl(url)) {
+      mainWindow.loadFile(OFFLINE_PAGE, { query: { retry: SITE_URL } });
+    }
+  });
+
+  mainWindow.loadURL(SITE_URL);
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -208,17 +175,7 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
-  app.whenReady().then(async () => {
-    try {
-      await startServer();
-    } catch (err) {
-      dialog.showErrorBox(
-        'THE BOSS',
-        `Não foi possível iniciar o aplicativo (porta ${PORT} em uso).\n\n${err.message}`
-      );
-      app.quit();
-      return;
-    }
+  app.whenReady().then(() => {
     buildMenu();
     createWindow();
 
@@ -229,9 +186,5 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
-  });
-
-  app.on('before-quit', () => {
-    if (server) server.close();
   });
 }
