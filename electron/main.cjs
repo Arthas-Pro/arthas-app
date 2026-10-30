@@ -9,11 +9,25 @@ const path = require('path');
 // Porta fixa: mantém a mesma origem (http://localhost:47821) entre execuções,
 // para que ela possa ser autorizada no Google Cloud (sincronização com o Google Agenda).
 const PREFERRED_PORT = 47821;
+
+// Pasta de dados fixa: não depende do nome/versão do app, então atualizações
+// (ou uma futura mudança de nome) sempre encontram os dados já existentes.
+// Windows: %APPDATA%\THE BOSS ERP — macOS: ~/Library/Application Support/THE BOSS ERP
+app.setPath('userData', path.join(app.getPath('appData'), 'THE BOSS ERP'));
+
 const DIST_DIR = path.join(__dirname, '..', 'dist');
 const DATA_DIR = path.join(app.getPath('userData'), 'dados');
 const AUTO_BACKUP_DIR = path.join(app.getPath('userData'), 'backups-automaticos');
 const AUTO_BACKUPS_TO_KEEP = 14;
+const CORRUPTED_DIR = path.join(app.getPath('userData'), 'arquivos-corrompidos');
+const META_FILE = path.join(app.getPath('userData'), 'meta.json');
 const SAFE_KEY = /^[A-Za-z0-9_-]{1,64}$/;
+
+// Versão do formato dos dados. Se uma atualização futura mudar a estrutura de algum
+// módulo, aumente este número e adicione em MIGRATIONS a função que converte os dados
+// da versão anterior. Ex.: 2: (dados) => { dados.clientes = dados.clientes.map(...) }
+const DATA_VERSION = 1;
+const MIGRATIONS = {};
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -44,12 +58,46 @@ function dataFile(key) {
   return path.join(DATA_DIR, `${key}.json`);
 }
 
+function stamp() {
+  return new Date().toISOString().replace(/[:.]/g, '-');
+}
+
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf-8'));
+}
+
+// Procura o módulo no backup automático mais recente que o contenha
+function recoverFromAutoBackup(key) {
+  if (!fs.existsSync(AUTO_BACKUP_DIR)) return null;
+  const files = fs.readdirSync(AUTO_BACKUP_DIR).filter((f) => f.endsWith('.json'))
+    .map((f) => path.join(AUTO_BACKUP_DIR, f))
+    .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+  for (const file of files) {
+    try {
+      const value = readJson(file).dados?.[key];
+      if (value !== undefined) return value;
+    } catch {
+      // backup ilegível: tenta o próximo
+    }
+  }
+  return null;
+}
+
 function readKey(key) {
   if (!SAFE_KEY.test(key)) return null;
+  const file = dataFile(key);
+  if (!fs.existsSync(file)) return null;
   try {
-    return JSON.parse(fs.readFileSync(dataFile(key), 'utf-8'));
-  } catch {
-    return null;
+    return readJson(file);
+  } catch (err) {
+    // Arquivo danificado (ex.: queda de energia): guarda uma cópia e recupera do backup,
+    // em vez de começar vazio e sobrescrever o que existia.
+    console.error(`Arquivo de dados danificado (${key}):`, err);
+    fs.mkdirSync(CORRUPTED_DIR, { recursive: true });
+    fs.copyFileSync(file, path.join(CORRUPTED_DIR, `${key}-${stamp()}.json`));
+    const recovered = recoverFromAutoBackup(key);
+    if (recovered !== null) writeKey(key, recovered);
+    return recovered;
   }
 }
 
@@ -101,6 +149,53 @@ function autoBackup() {
   } catch (err) {
     console.error('Falha no backup automático:', err);
   }
+}
+
+// Executado a cada abertura, antes da interface carregar:
+// 1. se o app foi atualizado, guarda uma cópia completa dos dados de antes da atualização;
+// 2. converte os dados para o formato atual, se necessário.
+function prepareDataForThisVersion() {
+  let meta = {};
+  try {
+    meta = readJson(META_FILE);
+  } catch {
+    // primeira execução (ou meta.json ausente)
+  }
+  const previousApp = meta.versaoApp;
+  const previousData = meta.versaoDados || 1;
+  const dados = readAllData();
+  const hasData = Object.keys(dados).length > 0;
+
+  if (hasData && previousApp !== app.getVersion()) {
+    fs.mkdirSync(AUTO_BACKUP_DIR, { recursive: true });
+    const from = previousApp || 'anterior';
+    fs.writeFileSync(
+      path.join(AUTO_BACKUP_DIR, `antes-da-atualizacao-${from}-para-${app.getVersion()}-${stamp()}.json`),
+      JSON.stringify(backupPayload(), null, 2)
+    );
+  }
+
+  if (previousData > DATA_VERSION) {
+    // Dados criados por uma versão mais nova do app: não mexe neles
+    dialog.showMessageBoxSync({
+      type: 'warning',
+      message: 'Seus dados foram criados por uma versão mais nova do THE BOSS.',
+      detail: 'Instale a versão mais recente do app para evitar problemas. Seus dados não foram alterados.',
+    });
+    return;
+  }
+
+  if (hasData) {
+    for (let v = previousData + 1; v <= DATA_VERSION; v++) {
+      if (MIGRATIONS[v]) MIGRATIONS[v](dados);
+    }
+    if (previousData < DATA_VERSION) {
+      for (const [key, value] of Object.entries(dados)) writeKey(key, value);
+    }
+  }
+
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  fs.writeFileSync(META_FILE, JSON.stringify({ versaoApp: app.getVersion(), versaoDados: DATA_VERSION }, null, 2));
 }
 
 ipcMain.on('store:get', (event, key) => {
@@ -168,9 +263,8 @@ async function restoreBackup() {
   if (response !== 0) return;
 
   fs.mkdirSync(AUTO_BACKUP_DIR, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   fs.writeFileSync(
-    path.join(AUTO_BACKUP_DIR, `antes-de-restaurar-${stamp}.json`),
+    path.join(AUTO_BACKUP_DIR, `antes-de-restaurar-${stamp()}.json`),
     JSON.stringify(backupPayload(), null, 2)
   );
   for (const key of keys) writeKey(key, dados[key]);
@@ -354,6 +448,11 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     const port = await startServer();
     origin = `http://localhost:${port}`;
+    try {
+      prepareDataForThisVersion();
+    } catch (err) {
+      console.error('Falha ao preparar os dados:', err);
+    }
     autoBackup();
     buildMenu();
     createWindow();

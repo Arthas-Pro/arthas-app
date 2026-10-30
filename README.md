@@ -14,8 +14,17 @@ Cada módulo é salvo como um arquivo JSON na pasta do app:
 - **Windows:** `%APPDATA%\THE BOSS ERP\dados`
 - **macOS:** `~/Library/Application Support/THE BOSS ERP/dados`
 
-O app também guarda um **backup automático por dia** (últimos 14) em `backups-automaticos`.
-Desinstalar o app **não** apaga os dados.
+### Atualizações nunca apagam os dados
+
+- A pasta de dados é fixa e fica fora da pasta de instalação: instalar uma versão nova por cima
+  (ou desinstalar) **não** mexe nela.
+- Ao abrir uma versão nova pela primeira vez, o app guarda uma cópia completa dos dados de antes da
+  atualização em `backups-automaticos/antes-da-atualizacao-…json`.
+- Se uma versão futura mudar o formato de algum módulo, a conversão é feita automaticamente
+  (`DATA_VERSION` e `MIGRATIONS` em `electron/main.cjs`), sempre depois dessa cópia.
+- Se um arquivo de dados for danificado (ex.: queda de energia), ele é guardado em `arquivos-corrompidos`
+  e o módulo é recuperado do backup automático mais recente.
+- Além disso, o app guarda um **backup automático por dia** (últimos 14) em `backups-automaticos`.
 
 Menu **Arquivo**:
 
