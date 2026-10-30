@@ -26,18 +26,13 @@ import {
   Calendar,
   DollarSign,
   UserCircle,
-  HelpCircle,
   Menu,
   ChevronLeft,
   ChevronRight,
   Bell,
-  LogOut, 
   Compass,
-  CheckCircle,
-  CreditCard,
   User as UserIcon,
   Image as ImageIcon,
-  Clock,
   Lock
 } from 'lucide-react';
 import { 
@@ -76,18 +71,18 @@ export function Layout({ children, activeModule, onModuleChange, alertas }: Layo
     { id: 'calendario', label: t('nav.calendar'), icon: Calendar },
     { id: 'financeiro', label: t('nav.finance'), icon: DollarSign },
     { id: 'equipe', label: t('nav.team'), icon: UserCircle },
-    { id: 'suporte', label: t('nav.support'), icon: HelpCircle },
   ];
   const [mobileOpen, setMobileOpen] = useState(false);
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [myAccountOpen, setMyAccountOpen] = useState(false);
   const [secondaryPasswordDialogOpen, setSecondaryPasswordDialogOpen] = useState(false);
-  const [masterPass, setMasterPass] = useState('');
+  const [currentSecondary, setCurrentSecondary] = useState('');
+  const [profileName, setProfileName] = useState('');
   const [newSecondary, setNewSecondary] = useState('');
   const [confirmNewSecondary, setConfirmNewSecondary] = useState('');
   
   const { theme, setTheme } = useTheme();
-  const { user, logout, updateUser, login } = useAuth();
+  const { user, updateUser } = useAuth();
 
   const avatarOptions = Array.from({ length: 10 }, (_, i) => ({
     id: i.toString(),
@@ -98,29 +93,27 @@ export function Layout({ children, activeModule, onModuleChange, alertas }: Layo
 
   const alertasNaoLidas = alertas.filter(a => !a.lido).length;
 
-  const handleUpdateSecondaryPassword = async () => {
-    if (!masterPass) return toast.error('Digite sua senha master.');
+  const handleUpdateSecondaryPassword = () => {
+    if (user.secondaryPassword && currentSecondary !== user.secondaryPassword) {
+      return toast.error('Senha secundária atual incorreta.');
+    }
     if (newSecondary.length < 4) return toast.error('A nova senha deve ter pelo menos 4 caracteres.');
     if (newSecondary !== confirmNewSecondary) return toast.error('As senhas não coincidem.');
-    
-    // Simulate checking master password by trying to login
-    // In a real app we would have a specific endpoint to validate password
-    // For now we'll just assume it's correct if they typed anything (or we could use the login method but it resets state)
-    // Actually, let's just use the login function. It will re-authenticate the user if correct.
-    const success = await login(user?.email || '', masterPass);
-    if (success) {
-      updateUser({ secondaryPassword: newSecondary });
-      if (user?.email) {
-        localStorage.setItem(`erp-sec-pass-${user.email.toLowerCase()}`, newSecondary);
-      }
-      toast.success('Senha secundária atualizada com sucesso!');
-      setSecondaryPasswordDialogOpen(false);
-      setMasterPass('');
-      setNewSecondary('');
-      setConfirmNewSecondary('');
-    } else {
-      toast.error('Senha master incorreta.');
-    }
+
+    updateUser({ secondaryPassword: newSecondary });
+    toast.success('Senha secundária atualizada com sucesso!');
+    setSecondaryPasswordDialogOpen(false);
+    setCurrentSecondary('');
+    setNewSecondary('');
+    setConfirmNewSecondary('');
+  };
+
+  const handleSaveProfile = () => {
+    const name = profileName.trim();
+    if (!name) return toast.error('Digite um nome.');
+    updateUser({ name });
+    toast.success('Perfil atualizado!');
+    setMyAccountOpen(false);
   };
 
   const NavContent = ({ mobile = false }: { mobile?: boolean }) => (
@@ -180,22 +173,6 @@ export function Layout({ children, activeModule, onModuleChange, alertas }: Layo
           })}
         </nav>
       </ScrollArea>
-
-      {/* Footer */}
-      <div className={cn(
-        "p-4 border-t",
-        collapsed && !mobile && "px-2"
-      )}>
-        <button 
-          onClick={logout}
-          className={cn(
-          "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 transition-all w-full",
-          collapsed && !mobile && "justify-center px-2"
-        )}>
-          <LogOut className="w-5 h-5 flex-shrink-0" />
-          {(!collapsed || mobile) && <span>{t('action.logout') || 'Sair'}</span>}
-        </button>
-      </div>
     </div>
   );
 
@@ -332,17 +309,17 @@ export function Layout({ children, activeModule, onModuleChange, alertas }: Layo
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64 p-2">
                 <DropdownMenuLabel className="flex flex-col gap-1">
-                  <span className="font-bold">Sua Conta</span>
+                  <span className="font-bold">Seu Perfil</span>
                   <span className="text-[10px] text-muted-foreground uppercase font-medium">{user?.email}</span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 
                 <DropdownMenuItem 
                   className="cursor-pointer flex items-center gap-2"
-                  onClick={() => setMyAccountOpen(true)}
+                  onClick={() => { setProfileName(user.name); setMyAccountOpen(true); }}
                 >
                   <UserIcon className="w-4 h-4 text-muted-foreground" />
-                  Minha Assinatura
+                  Meu Perfil
                 </DropdownMenuItem>
 
                 <DropdownMenuItem 
@@ -361,12 +338,6 @@ export function Layout({ children, activeModule, onModuleChange, alertas }: Layo
                   Mudar Senha Secundária
                 </DropdownMenuItem>
 
-                <DropdownMenuSeparator />
-                
-                <DropdownMenuItem onClick={logout} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sair do sistema
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -402,47 +373,23 @@ export function Layout({ children, activeModule, onModuleChange, alertas }: Layo
         </Dialog>
 
         <Dialog open={myAccountOpen} onOpenChange={setMyAccountOpen}>
-          <DialogContent className="max-w-md sm:rounded-3xl p-6 shadow-2xl">
+          <DialogContent className="max-w-sm sm:rounded-3xl p-6 shadow-2xl">
             <DialogHeader>
-              <DialogTitle>Minha Assinatura</DialogTitle>
+              <DialogTitle>Meu Perfil</DialogTitle>
             </DialogHeader>
-            <div className="space-y-6 py-4">
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-card border border-indigo-500/20 shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-2">
-                  <Badge variant="outline" className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 text-[10px] uppercase font-bold tracking-widest">Ativo</Badge>
-                </div>
-                <div className="w-14 h-14 bg-indigo-600/10 rounded-xl flex items-center justify-center">
-                  <CreditCard className="w-7 h-7 text-indigo-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg">{user?.plan || 'THE BOSS PRO'}</h3>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Assinatura Anual</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/40">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Data de Início</p>
-                    <p className="text-sm font-medium">{user?.dataAssinatura ? new Date(user.dataAssinatura).toLocaleDateString('pt-BR') : '15/01/2026'}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/40 border border-amber-500/10">
-                  <Clock className="w-4 h-4 text-amber-500" />
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Válido até</p>
-                    <p className="text-sm font-medium">{user?.validadeAssinatura ? new Date(user.validadeAssinatura).toLocaleDateString('pt-BR') : '15/01/2027'}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-lg bg-indigo-600/5 border border-indigo-600/10 text-center">
-                <p className="text-xs text-muted-foreground italic">"O segredo do sucesso é o gerenciamento da sua própria evolução."</p>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Nome exibido</Label>
+                <Input 
+                  value={profileName} 
+                  onChange={(e) => setProfileName(e.target.value)} 
+                  placeholder="Seu nome ou da produtora" 
+                />
               </div>
             </div>
             <DialogFooter>
-              <Button className="w-full bg-indigo-600 hover:bg-indigo-700" onClick={() => setMyAccountOpen(false)}>Ok, entendi!</Button>
+              <Button variant="outline" onClick={() => setMyAccountOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSaveProfile}>Salvar</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -453,15 +400,17 @@ export function Layout({ children, activeModule, onModuleChange, alertas }: Layo
               <DialogTitle>Mudar Senha Secundária</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Senha Master Atual</Label>
-                <Input 
-                  type="password" 
-                  value={masterPass} 
-                  onChange={(e) => setMasterPass(e.target.value)} 
-                  placeholder="Sua senha de login" 
-                />
-              </div>
+              {user.secondaryPassword && (
+                <div className="space-y-2">
+                  <Label>Senha Secundária Atual</Label>
+                  <Input 
+                    type="password" 
+                    value={currentSecondary} 
+                    onChange={(e) => setCurrentSecondary(e.target.value)} 
+                    placeholder="Senha atual" 
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Nova Senha Secundária</Label>
                 <Input 

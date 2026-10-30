@@ -1,7 +1,11 @@
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
-// Permite que o site saiba que está rodando no app desktop, se necessário.
+// Ponte entre a interface e o armazenamento em arquivos do app desktop
 contextBridge.exposeInMainWorld('desktop', {
   isElectron: true,
   platform: process.platform,
+  store: {
+    get: (key) => ipcRenderer.sendSync('store:get', key),
+    set: (key, value) => ipcRenderer.send('store:set', key, value),
+  },
 });

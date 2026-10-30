@@ -1,44 +1,41 @@
-# THE BOSS — ERP/CRM (Web + Desktop)
+# THE BOSS — ERP/CRM (uso pessoal, desktop)
 
-Sistema de gestão para produtoras e agências audiovisuais: Dashboard, CRM, Projetos (Kanban/Trello),
-Inventário de equipamentos (com leitor de código de barras), Calendário (com Google Agenda),
-Financeiro (com importação de extratos PDF/OFX/CSV), Equipe/Freelancers e Suporte.
+Sistema de gestão para produtora audiovisual: Visão Panorâmica (dashboard), CRM, Projetos (Kanban/Trello),
+Inventário de equipamentos (com leitor de código de barras), Calendário (com Google Agenda opcional),
+Financeiro (com importação de extratos PDF/OFX/CSV) e Equipe/Freelancers.
 
-O mesmo código roda como **site** (Vite/React) e como **app de desktop** (Electron) para Windows e macOS.
+Aplicativo de desktop (Electron) para Windows e macOS, **100% local**: sem login, sem servidor,
+funciona sem internet.
 
-## Como o app de desktop funciona
+## Onde ficam os dados
 
-- O app (Electron) abre o sistema oficial em `https://thebosspro.com`. Atualizações do site chegam ao app
-  na hora, sem reinstalar, e o login do Google Agenda usa a mesma origem já autorizada do site.
-- Sem internet, o app mostra uma tela com o botão **Tentar novamente**.
-- Links de WhatsApp, Hotmart e e-mail abrem no navegador/app padrão.
+Cada módulo é salvo como um arquivo JSON na pasta do app:
 
-## Servidor (pasta `server/`)
+- **Windows:** `%APPDATA%\THE BOSS ERP\dados`
+- **macOS:** `~/Library/Application Support/THE BOSS ERP/dados`
 
-API em Node/Express publicada em `https://api.thebosspro.com`.
+O app também guarda um **backup automático por dia** (últimos 14) em `backups-automaticos`.
+Desinstalar o app **não** apaga os dados.
 
-- Login gera um token de sessão (válido por 30 dias, até 5 aparelhos por conta).
-- Cada usuário só lê e grava os próprios dados.
-- Senhas são guardadas com hash (scrypt). Senhas antigas em texto puro são convertidas no próximo login.
-- Cadastro manual, logs e teste de e-mail são exclusivos de contas MASTER.
-- O `.env` (SMTP e token da Hotmart) fica só no servidor; use `server/.env.example` como modelo.
+Menu **Arquivo**:
 
-## Publicar site e servidor
+- **Fazer backup dos dados…** (Ctrl/Cmd+S): salva tudo num único arquivo `.json`.
+- **Restaurar backup…**: aceita um backup do app ou os arquivos soltos `clientes.json`, `projetos.json`…
+  (por exemplo, os da pasta `data/<id>` do antigo servidor). Antes de restaurar, os dados atuais são copiados
+  para os backups automáticos.
+- **Abrir pasta dos dados**.
 
-1. Uma única vez: em **Settings → Secrets and variables → Actions → New repository secret**, crie
-   `HOSTINGER_SSH_PASSWORD` com a senha SSH da Hostinger.
-2. Aba **Actions** → **Publicar site e servidor (Hostinger)** → **Run workflow**.
+## Áreas restritas
 
-O fluxo envia a API (sem tocar no `.env`, `storage/` e `data/` do servidor), reinicia o Node e publica o site.
+Os módulos são protegidos por uma senha secundária, criada no primeiro acesso e alterável em
+**Perfil → Mudar Senha Secundária**.
 
 ## Baixar os instaladores
 
-Cada alteração do app de desktop enviada para a branch `main` dispara o GitHub Actions (aba **Actions** → *Build Desktop*), que gera:
+Cada envio para a branch `main` dispara o GitHub Actions (aba **Actions** → *Build Desktop*), que gera:
 
 - `instalador-windows` → `THE-BOSS-ERP-Setup-x.y.z.exe`
 - `instalador-macos` → `THE-BOSS-ERP-x.y.z-mac.dmg` (Intel e Apple Silicon)
-
-Para publicar uma versão na página **Releases**: altere `version` no `package.json` e crie uma tag `v1.0.1`, por exemplo.
 
 ### Primeira abertura (instaladores sem assinatura digital)
 
@@ -46,12 +43,21 @@ Para publicar uma versão na página **Releases**: altere `version` no `package.
 - **macOS:** clique com o botão direito no app → **Abrir** → **Abrir**. Em versões novas do macOS:
   **Ajustes do Sistema → Privacidade e Segurança → Abrir mesmo assim**.
 
+## Google Agenda (opcional)
+
+A sincronização usa o login do Google. Para funcionar no app, no
+[Google Cloud Console](https://console.cloud.google.com/apis/credentials) abra o ID do cliente OAuth usado
+pelo sistema e adicione em **Origens JavaScript autorizadas**:
+
+```
+http://localhost:47821
+```
+
 ## Comandos para desenvolvedores
 
 ```bash
 npm ci                 # instalar dependências
-npm run dev            # site em modo desenvolvimento
-npm run build          # build do site (deploy web)
+npm run dev            # interface no navegador (dados no localStorage)
 npm run electron       # abrir o app de desktop
 npm run dist:win       # gerar instalador .exe (Windows)
 npm run dist:mac       # gerar .dmg (precisa de um Mac; use o GitHub Actions)

@@ -3,82 +3,21 @@ import type {
   Cliente, Projeto, Equipamento, Evento, Transacao, 
   Freelancer, Tarefa, Alerta, FiltroPeriodo 
 } from '@/types';
-import { useAuth } from '@/contexts/AuthContext';
-import { authHeaders } from '@/lib/api';
+import { loadData, saveData } from '@/lib/storage';
 
-const API_URL = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname) 
-  ? 'http://localhost:3001' 
-  : 'https://api.thebosspro.com';
-
-// Helper hook to manage persistent state per user with cloud sync
+// Estado persistido localmente (arquivo JSON no app desktop, localStorage no navegador)
 function usePersistentState<T>(key: string, getInitialValue: () => T) {
-  const { user } = useAuth();
-  const storageKey = user ? `erp-data-${user.id}-${key}` : null;
-  const isInitialSync = useRef(true);
+  const [state, setState] = useState<T>(() => loadData<T>(key) ?? getInitialValue());
+  const isFirstRender = useRef(true);
 
-  const [state, setState] = useState<T>(() => {
-    if (!storageKey) return getInitialValue();
-    const saved = localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) : getInitialValue();
-  });
-
-  // 1. Initial Sync from Server
   useEffect(() => {
-    if (!user || !storageKey) {
-      isInitialSync.current = false;
+    // Não regrava no disco o valor que acabou de ser lido
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
       return;
     }
-
-    const fetchFromServer = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/data/${user.id}/${key}`, {
-          headers: authHeaders(user.token)
-        });
-        if (response.ok) {
-          const serverData = await response.json();
-          const hasServerData = Array.isArray(serverData) ? serverData.length > 0 : (serverData && Object.keys(serverData).length > 0);
-          
-          if (hasServerData) {
-            setState(serverData as unknown as T);
-            localStorage.setItem(storageKey, JSON.stringify(serverData));
-          }
-        }
-      } catch (err) {
-        console.error(`Error syncing ${key} from server:`, err);
-      } finally {
-        isInitialSync.current = false;
-      }
-    };
-
-    fetchFromServer();
-  }, [user, storageKey, key]);
-
-  // 2. Save state locally and to Server when it changes
-  useEffect(() => {
-    if (!storageKey || !user) return;
-    
-    // Update LocalStorage immediately for responsive UI
-    localStorage.setItem(storageKey, JSON.stringify(state));
-
-    // If we're still in the initial sync phase, don't push to server
-    if (isInitialSync.current) return;
-
-    // Update Server
-    const saveToServer = async () => {
-      try {
-        await fetch(`${API_URL}/api/data/${user.id}/${key}`, {
-          method: 'POST',
-          headers: authHeaders(user.token),
-          body: JSON.stringify(state)
-        });
-      } catch (err) {
-        console.error(`Error saving ${key} to server:`, err);
-      }
-    };
-
-    const timeoutId = setTimeout(saveToServer, 500); // Simple debounce
-    return () => clearTimeout(timeoutId);
-  }, [state, storageKey, user, key]);
+    saveData(key, state);
+  }, [state, key]);
 
   return [state, setState] as const;
 }

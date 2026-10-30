@@ -1,8 +1,8 @@
 {
   "name": "the-boss-erp",
   "productName": "THE BOSS ERP",
-  "version": "1.1.0",
-  "description": "THE BOSS - ERP/CRM para produtoras audiovisuais",
+  "version": "2.0.0",
+  "description": "THE BOSS - ERP/CRM pessoal para produtoras audiovisuais (uso local)",
   "author": "Arthas Produções",
   "private": true,
   "type": "module",
@@ -12,12 +12,14 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron": "electron .",
-    "dist:win": "electron-builder --win",
-    "dist:mac": "electron-builder --mac"
+    "electron": "vite build && electron .",
+    "dist:win": "vite build && electron-builder --win",
+    "dist:mac": "vite build && electron-builder --mac"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/orbitron": "^5.3.0",
     "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -67,6 +69,7 @@
     "kimi-plugin-inspect-react": "^1.0.3",
     "lucide-react": "^0.562.0",
     "next-themes": "^0.4.6",
+    "pdfjs-dist": "^3.11.174",
     "postcss": "^8.5.6",
     "react": "^19.2.0",
     "react-day-picker": "^9.13.0",

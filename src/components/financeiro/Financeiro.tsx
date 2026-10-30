@@ -163,23 +163,14 @@ export function Financeiro({
         let textContent = '';
 
         if (fileExtension === 'pdf') {
-          // Injeta dinamicamente a biblioteca PDF.js da CDN se não estiver carregada
-          const loadPdfJS = (): Promise<any> => {
-            return new Promise((resolve, reject) => {
-              if ((window as any).pdfjsLib) {
-                resolve((window as any).pdfjsLib);
-                return;
-              }
-              const script = document.createElement('script');
-              script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-              script.onload = () => {
-                const pdfjs = (window as any)['pdfjs-dist/build/pdf'];
-                pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-                resolve(pdfjs);
-              };
-              script.onerror = () => reject(new Error('Erro ao carregar leitor de PDF.'));
-              document.head.appendChild(script);
-            });
+          // Leitor de PDF embutido no app (carregado só quando necessário)
+          const loadPdfJS = async () => {
+            const [pdfjs, worker] = await Promise.all([
+              import('pdfjs-dist'),
+              import('pdfjs-dist/build/pdf.worker.min.js?url'),
+            ]);
+            pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+            return pdfjs;
           };
 
           const pdfjs = await loadPdfJS();

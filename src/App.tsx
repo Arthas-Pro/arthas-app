@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { parseISO } from 'date-fns';
-import { useAuth, AuthProvider } from '@/contexts/AuthContext';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import { Login } from '@/components/auth/Login';
-import { LandingPage } from '@/components/auth/LandingPage';
-import { ChangePassword } from '@/components/auth/ChangePassword';
 import { Layout } from '@/components/Layout';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { CRM } from '@/components/crm/CRM';
@@ -13,7 +10,6 @@ import { Inventario } from '@/components/inventario/Inventario';
 import { Calendario } from '@/components/CalendarioPRO/Calendario';
 import { Financeiro } from '@/components/financeiro/Financeiro';
 import { Equipe } from '@/components/equipe/Equipe';
-import { Suporte } from '@/components/suporte/Suporte';
 import { 
   useClientes, 
   useProjetos, 
@@ -25,8 +21,6 @@ import {
   useAlertas 
 } from '@/hooks/useStore';
 import { Toaster } from '@/components/ui/sonner';
-import { MessageCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import type { Cliente, Projeto } from '@/types';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -35,16 +29,14 @@ import { LanguageSwitcher } from '@/components/ui-custom/LanguageSwitcher';
 import { SecurityLock } from '@/components/auth/SecurityLock';
 
 /**
- * Componente principal para usuários autenticados.
- * O uso de 'key={user.id}' no AppContent garante que este componente 
- * seja totalmente reiniciado (resetando todos os hooks) ao trocar de conta.
+ * Componente principal do sistema.
  */
 function AuthenticatedApp() {
   const [activeModule, setActiveModule] = useState('dashboard');
 
 
 
-  // Hooks de estado - Isolados por instância do componente (ID do usuário)
+  // Hooks de estado
   const { 
     clientes, 
     addCliente, 
@@ -319,8 +311,6 @@ function AuthenticatedApp() {
             onDeleteFreelancer={deleteFreelancer}
           />
         );
-      case 'suporte':
-        return <Suporte />;
       default:
         return null;
     }
@@ -338,76 +328,9 @@ function AuthenticatedApp() {
 }
 
 function AppContent() {
-  const { user, isAuthenticated } = useAuth();
-  const [initialView, setInitialView] = useState<'landing' | 'login'>('landing');
-
-  if (!isAuthenticated) {
-    if (initialView === 'landing') {
-      return (
-        <>
-          <LandingPage onLoginClick={() => setInitialView('login')} />
-          <Toaster position="top-right" richColors />
-
-          {/* Floating WhatsApp Support Button - Always visible when not authenticated */}
-          <motion.a
-            href="https://wa.me/5589981455411"
-            target="_blank"
-            rel="noopener noreferrer"
-            initial={{ scale: 0.5, x: 100 }}
-            animate={{ scale: 1, x: 0 }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            className="fixed bottom-8 right-8 z-[9999] flex items-center justify-center w-16 h-16 bg-green-600 rounded-full shadow-[0_0_20px_rgba(22,163,74,0.4)] text-white transition-all transform hover:rotate-6 group"
-          >
-            <div className="absolute inset-0 rounded-full bg-green-600 animate-ping opacity-25 group-hover:hidden" />
-            <MessageCircle className="w-8 h-8 drop-shadow-md" />
-            
-            <div className="absolute right-20 bg-zinc-900 border border-zinc-800 text-white px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-2xl">
-              Suporte THE BOSS
-            </div>
-          </motion.a>
-        </>
-      );
-    }
-    return (
-      <>
-        <Login onBackClick={() => setInitialView('landing')} />
-        <Toaster position="top-right" richColors />
-        
-        {/* Floating WhatsApp Support Button - Always visible when not authenticated */}
-        <motion.a
-          href="https://wa.me/5589981455411"
-          target="_blank"
-          rel="noopener noreferrer"
-          initial={{ scale: 0.5, x: 100 }}
-          animate={{ scale: 1, x: 0 }}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          className="fixed bottom-8 right-8 z-[9999] flex items-center justify-center w-16 h-16 bg-green-600 rounded-full shadow-[0_0_20px_rgba(22,163,74,0.4)] text-white transition-all transform hover:rotate-6 group"
-        >
-          <div className="absolute inset-0 rounded-full bg-green-600 animate-ping opacity-25 group-hover:hidden" />
-          <MessageCircle className="w-8 h-8 drop-shadow-md" />
-          
-          <div className="absolute right-20 bg-zinc-900 border border-zinc-800 text-white px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-2xl">
-            Suporte THE BOSS
-          </div>
-        </motion.a>
-      </>
-    );
-  }
-
-  if (user?.isFirstAccess) {
-    return (
-      <>
-        <ChangePassword onComplete={() => {}} />
-        <Toaster position="top-right" richColors />
-      </>
-    );
-  }
-
   return (
     <>
-      <AuthenticatedApp key={user?.id} />
+      <AuthenticatedApp />
       <Toaster position="top-right" richColors />
     </>
   );
