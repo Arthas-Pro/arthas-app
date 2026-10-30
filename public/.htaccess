@@ -1,0 +1,15 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  
+  # 1. Encaminha chamadas de API para o servidor Node no subdomínio api.thebosspro.com
+  # Note: Na Hostinger, se o subdomínio estiver na mesma conta, o localhost:3001 costuma funcionar,
+  # mas a regra abaixo garante a compatibilidade com o React Router.
+  
+  # 2. Configuração para React Router (SPA) - Evita erro 404 ao atualizar a página
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !-l
+  RewriteRule . /index.html [L]
+</IfModule>

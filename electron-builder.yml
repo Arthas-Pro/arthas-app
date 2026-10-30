@@ -1,0 +1,40 @@
+appId: com.thebosspro.erp
+productName: THE BOSS ERP
+copyright: Copyright © 2026 Arthas Produções
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - electron/**/*
+  - build/icon.png
+  - package.json
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+  artifactName: THE-BOSS-ERP-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: THE BOSS ERP
+  language: "1046"
+
+mac:
+  target:
+    - target: dmg
+      arch: [universal]
+  icon: build/icon.png
+  category: public.app-category.business
+  artifactName: THE-BOSS-ERP-${version}-mac.${ext}
+  identity: null
+
+dmg:
+  title: THE BOSS ERP

@@ -1,0 +1,53 @@
+name: Build Desktop (Windows + macOS)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist:win
+            files: release/*.exe
+            name: instalador-windows
+          - os: macos-latest
+            script: dist:mac
+            files: release/*.dmg
+            name: instalador-macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Gerar instalador
+        run: npm run ${{ matrix.script }} -- --publish never
+        env:
+          # Sem certificado Apple: o .dmg sai sem assinatura
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+      - name: Publicar na página de Releases (somente em tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.files }}
